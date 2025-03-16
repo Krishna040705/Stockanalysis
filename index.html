@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #fff;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Navigation Bar */
+        nav {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav .logo {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        nav ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+
+        nav ul li {
+            margin-left: 20px;
+        }
+
+        nav ul li a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 1em;
+            transition: color 0.3s ease;
+        }
+
+        nav ul li a:hover {
+            color: #007bff;
+        }
+
+        /* Container */
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            max-width: 1000px;
+            margin: 20px auto;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            flex: 1;
+            width: 90%;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        input {
+            width: 80%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1em;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        #result {
+            margin-top: 20px;
+            font-size: 1.2em;
+        }
+
+        .decision {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .buy { color: #4caf50; }
+        .sell { color: #f44336; }
+        .hold { color: #ff9800; }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            margin-top: 20px;
+        }
+
+        /* Footer */
+        footer {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 0;
+            text-align: center;
+            color: #fff;
+            font-size: 0.9em;
+            margin-top: auto;
+        }
+
+        footer p {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav>
+        <div class="logo">Stock Analysis</div>
+        <ul>
+            <li><a href="#">Home</a></li>
+            <li><a href="#">About</a></li>
+            <li><a href="#">Contact</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <h1>Live Stock Analysis</h1>
+        <input type="text" id="stockSymbol" placeholder="Enter Stock Symbol (e.g., AAPL, TCS.NS)">
+        <button id="analyzeButton">Analyze</button>
+        <div id="result"></div>
+        <div id="decision" class="decision"></div>
+        <div class="chart-container">
+            <canvas id="stockChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2025 Subrahmanyam. All rights reserved.</p>
+    </footer>
+
+    <script>
+        function calculateSMA(prices, period) {
+            return prices.map((price, index, array) => {
+                if (index < period - 1) return null;
+                return array.slice(index - period + 1, index + 1).reduce((sum, price) => sum + price, 0) / period;
+            });
+        }
+
+        function getDecision(shortSMA, longSMA) {
+            const lastShortSMA = shortSMA[shortSMA.length - 1];
+            const lastLongSMA = longSMA[longSMA.length - 1];
+            if (lastShortSMA > lastLongSMA) return { decision: "Buy", className: "buy" };
+            if (lastShortSMA < lastLongSMA) return { decision: "Sell", className: "sell" };
+            return { decision: "Hold", className: "hold" };
+        }
+
+        async function analyzeStock(symbol) {
+            const apiKey = "XXNQXTOVRTRUSEV2"; // Replace with your Alpha Vantage API key
+            const apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${apiKey}`;
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                if (!data["Time Series (Daily)"]) {
+                    document.getElementById("result").innerHTML = "Stock data not available.";
+                    return;
+                }
+                const timeSeries = data["Time Series (Daily)"];
+                const dates = Object.keys(timeSeries).reverse(); // Get all available dates
+                const prices = dates.map(date => parseFloat(timeSeries[date]["4. close"]));
+
+                const shortSMA = calculateSMA(prices, 5);
+                const longSMA = calculateSMA(prices, 20);
+
+                const { decision, className } = getDecision(shortSMA, longSMA);
+
+                document.getElementById("result").innerHTML = `<h2>Stock: ${symbol}</h2>`;
+                document.getElementById("decision").innerHTML = `Decision: <span class="${className}">${decision}</span>`;
+
+                new Chart(document.getElementById("stockChart"), {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {
+                                label: `${symbol} Stock Price`,
+                                data: prices,
+                                borderColor: 'rgba(0, 123, 255, 1)',
+                                fill: false
+                            },
+                            {
+                                label: '5-Day SMA',
+                                data: shortSMA,
+                                borderColor: 'rgba(76, 175, 80, 1)',
+                                fill: false
+                            },
+                            {
+                                label: '20-Day SMA',
+                                data: longSMA,
+                                borderColor: 'rgba(244, 67, 54, 1)',
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#fff'
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#fff'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: '#fff'
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                document.getElementById("result").innerHTML = "Error fetching stock analysis.";
+            }
+        }
+
+        document.getElementById("analyzeButton").addEventListener("click", function () {
+            const symbol = document.getElementById("stockSymbol").value.toUpperCase();
+            analyzeStock(symbol);
+        });
+    </script>
+</body>
+</html>
